@@ -49,29 +49,30 @@ application state pending = do
   WS.forkPingThread conn 30
   msg <- WS.receiveData conn
   clients <- readMVar state
+  let user = (userName msg, conn)
   case msg of
         _ | not (prefix `T.isPrefixOf` msg) -> WS.sendTextData conn ("Wrong announcement" :: Text)
-          | any ($ userName msg) [T.null, T.any isPunctuation, T.any isSpace] ->
-                             WS.sendTextData conn ("Name cannot " `mappend`
-                         "contain punctuation or whitespace, and " `mappend`
-                         "cannot be empty" :: Text)
-          | clientExists (userName msg, conn) clients -> WS.sendTextData conn ("User already exists" :: Text)
-          | otherwise -> flip finally (do
-                                          s <- modifyMVar state $ \s ->
-                                           let s' = removeClient (userName msg, conn) s in return (s', s')
-                                          broadcast (userName msg `mappend` " disconnected") s) $
-              modifyMVar_ state $ \s -> do
-                let s' = addClient (userName msg, conn) s
-                case s' of
-                  Left _ -> undefined
-                  Right ss -> do
-                    WS.sendTextData conn $ "Welcome! Users: " `mappend` T.intercalate ", " (map fst s)
-                    broadcast (userName msg `mappend` " joined") ss
-                    return ss
-  talk conn state (userName msg, conn)
+          | any ($ fst user) [T.null, T.any isPunctuation, T.any isSpace] -> WS.sendTextData conn failure
+          | clientExists (fst user, conn) clients -> WS.sendTextData conn ("User already exists" :: Text)
+          | otherwise -> finally (add user) (remove user)
+  talk conn state (fst user, conn)
   where
     prefix = "Hi! I am "
     userName = T.drop (T.length prefix)
+    failure = "Name cannot " `mappend` "contain punctuation or whitespace, and " `mappend` "cannot be empty" :: Text
+    add (username, conn) = modifyMVar_ state $ \s -> do
+      let s' = addClient (username, conn) s
+      case s' of
+        Left _ -> error "Something went wrong..."
+        Right ss -> do
+          WS.sendTextData conn $ "Welcome! Users: " `mappend` T.intercalate ", " (map fst s)
+          broadcast (username `mappend` " joined") ss
+          return ss
+    remove (username, conn) = do
+      s <- modifyMVar state $ \s ->
+        let s' = removeClient (username, conn) s
+          in return (s', s')
+      broadcast (username `mappend` " disconnected") s
 
 talk :: WS.Connection -> MVar ServerState -> Client -> IO ()
 talk conn state (userName, _) = forever $ do
