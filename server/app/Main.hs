@@ -38,11 +38,6 @@ removeClient c = filter ((== fst c) . fst)
 broadcast :: Text -> ServerState -> IO ()
 broadcast m s = forM_ s $ \(_, conn) -> WS.sendTextData conn m
 
-main :: IO ()
-main = do
-  state <- newMVar newServerState
-  WS.runServer "127.0.0.1" 1337 $ application state
-
 application :: MVar ServerState -> WS.ServerApp
 application state pending = do
   conn <- WS.acceptRequest pending
@@ -78,3 +73,8 @@ talk :: WS.Connection -> MVar ServerState -> Client -> IO ()
 talk conn state (userName, _) = forever $ do
   msg <- WS.receiveData conn
   readMVar state >>= broadcast (userName `mappend` ": " `mappend` msg)
+
+main :: IO ()
+main = do
+  state <- newMVar newServerState
+  WS.runServer "127.0.0.1" 1337 $ application state
