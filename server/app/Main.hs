@@ -44,16 +44,13 @@ application state pending = do
   WS.forkPingThread conn 30
   msg <- WS.receiveData conn
   clients <- readMVar state
-  let user = (userName msg, conn)
+  let user = (msg, conn)
   case msg of
-        _ | not (prefix `T.isPrefixOf` msg) -> WS.sendTextData conn ("Wrong announcement" :: Text)
-          | any ($ fst user) [T.null, T.any isPunctuation, T.any isSpace] -> WS.sendTextData conn failure
-          | clientExists (fst user, conn) clients -> WS.sendTextData conn ("User already exists" :: Text)
-          | otherwise -> finally (add user) (remove user)
+        _ | any ($ fst user) [T.null, T.any isPunctuation, T.any isSpace] -> WS.sendTextData conn failure
+          | clientExists (fst user, conn) clients -> WS.sendTextData conn ("Username is already taken" :: Text)
+          | otherwise -> finally (remove user) (add user)
   talk conn state $ fst user
   where
-    prefix = "Hi! I am "
-    userName = T.drop (T.length prefix)
     failure = "Name cannot " `mappend` "contain punctuation or whitespace, and " `mappend` "cannot be empty" :: Text
     add (username, conn) = modifyMVar_ state $ \s -> do
       let s' = addClient (username, conn) s
