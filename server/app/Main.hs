@@ -50,7 +50,7 @@ application state pending = do
           | any ($ fst user) [T.null, T.any isPunctuation, T.any isSpace] -> WS.sendTextData conn failure
           | clientExists (fst user, conn) clients -> WS.sendTextData conn ("User already exists" :: Text)
           | otherwise -> finally (add user) (remove user)
-  talk conn state (fst user, conn)
+  talk conn state $ fst user
   where
     prefix = "Hi! I am "
     userName = T.drop (T.length prefix)
@@ -69,8 +69,8 @@ application state pending = do
           in return (s', s')
       broadcast (username `mappend` " disconnected") s
 
-talk :: WS.Connection -> MVar ServerState -> Client -> IO ()
-talk conn state (userName, _) = forever $ do
+talk :: WS.Connection -> MVar ServerState -> Text -> IO ()
+talk conn state userName = forever $ do
   msg <- WS.receiveData conn
   readMVar state >>= broadcast (userName `mappend` ": " `mappend` msg)
 

@@ -28,6 +28,10 @@ executable chatz-client
   main-is:             Main.hs
   build-depends:       base
                      , client
+                     , websockets
+                     , text
+                     , mtl
+                     , network
 
 test-suite spec
   default-language:    Haskell2010
